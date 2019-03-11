@@ -13,6 +13,12 @@ using VirtoCommerce.Storefront.Model.Quote;
 using VirtoCommerce.Storefront.Model.Quote.Services;
 using VirtoCommerce.Storefront.Model.Services;
 
+using System.Net.Http.Headers;
+using System.Text;
+using System.Net.Http;
+using System.Web;
+using System.Runtime.Serialization;
+
 namespace VirtoCommerce.Storefront.Controllers.Api
 {
     [StorefrontApiRoute("")]
@@ -135,7 +141,27 @@ namespace VirtoCommerce.Storefront.Controllers.Api
                 await _quoteRequestBuilder.SaveAsync();
             }
 
+            CreateCpqQuote(_quoteRequestBuilder.QuoteRequest.Number);
+
             return Ok();
+        }
+
+        private async void CreateCpqQuote(string quoteName)
+        {
+            var client = new System.Net.Http.HttpClient();
+            var queryString = System.Web.HttpUtility.ParseQueryString(string.Empty);
+            var endPoint = "https://prod-11.westus.logic.azure.com:443";
+            var resource = "/workflows/915a6f97b54a4099a96855db2dcc862f/triggers/manual/paths/invoke";
+            var parameters = "?api-version=2016-10-01&sp=/triggers/manual/run&sv=1.0&sig=ir9firMdH8eoQIIQfppuhNVW9c2lxjpYWV8fIw8rKBY";
+            var uri = endPoint + resource + parameters;
+
+            byte[] byteData = System.Text.Encoding.UTF8.GetBytes(@"{""quoteName"": """ + quoteName + "\"}");
+
+            using (var content = new System.Net.Http.ByteArrayContent(byteData))
+            {
+                content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
+                var response = await client.PostAsync(uri, content);
+            }
         }
 
         // POST: storefrontapi/quoterequest/{number}/reject
