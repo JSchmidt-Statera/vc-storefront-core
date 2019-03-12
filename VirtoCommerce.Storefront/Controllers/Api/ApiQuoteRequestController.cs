@@ -18,6 +18,9 @@ using System.Text;
 using System.Net.Http;
 using System.Web;
 using System.Runtime.Serialization;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+
 
 namespace VirtoCommerce.Storefront.Controllers.Api
 {
@@ -155,9 +158,21 @@ namespace VirtoCommerce.Storefront.Controllers.Api
             var parameters = "?api-version=2016-10-01&sp=/triggers/manual/run&sv=1.0&sig=ir9firMdH8eoQIIQfppuhNVW9c2lxjpYWV8fIw8rKBY";
             var uri = endPoint + resource + parameters;
 
-            string vcQuote = Newtonsoft.Json.JsonConvert.SerializeObject(_quoteRequestBuilder.QuoteRequest);
+            //string jsonContent = CreateJsonContent(vcQuote);
 
-            byte[] byteData = System.Text.Encoding.UTF8.GetBytes(@"{""quoteName"": """ + quoteName + "\"}");
+            //byte[] byteData = System.Text.Encoding.UTF8.GetBytes(@"{""quoteName"": """ + quoteName + "\"}");
+            //Original Schema
+            //{
+            //    "properties": {
+            //        "quoteName": {
+            //            "type": "string"
+            //        }
+            //    },
+            //    "type": "object"
+            //}
+
+            string vcQuote = Newtonsoft.Json.JsonConvert.SerializeObject(_quoteRequestBuilder.QuoteRequest);
+            byte[] byteData = System.Text.Encoding.UTF8.GetBytes(vcQuote);
 
             using (var content = new System.Net.Http.ByteArrayContent(byteData))
             {
@@ -166,6 +181,64 @@ namespace VirtoCommerce.Storefront.Controllers.Api
 
                 ProcessCpqQuoteJson(response.Headers);
             }
+        }
+
+        private string CreateJsonContent(string quote)
+        {
+            string retVal = string.Empty;
+            JObject jObject = JObject.Parse(quote);
+
+            //Fields
+            string quoteNumber = (string)jObject.GetValue("Number");
+
+            //Addresses
+            JArray addresses = (JArray)jObject.GetValue("Addresses");
+
+            foreach (JObject address in addresses)
+            {
+                switch ((int)address.GetValue("Type"))
+                {
+                    case 1:
+                        string billToOrganization = (string)address.GetValue("Organization");
+                        string billToCountryCode = (string)address.GetValue("CountryCode");
+                        string billToCountryName = (string)address.GetValue("CountryName");
+                        string billToCity = (string)address.GetValue("City");
+                        string billToPostalCode = (string)address.GetValue("PostalCode");
+                        string billToZip = (string)address.GetValue("Zip");
+                        string billToLine1 = (string)address.GetValue("Line1");
+                        string billToLine2 = (string)address.GetValue("Line2");
+                        string billToRegionId = (string)address.GetValue("RegionId");
+                        string billToRegionName = (string)address.GetValue("RegionName");
+                        string billToFirstName = (string)address.GetValue("FirstName");
+                        string billToMiddleName = (string)address.GetValue("MiddleName");
+                        string billToLastName = (string)address.GetValue("LastName");
+                        string billToPhone = (string)address.GetValue("Phone");
+                        string billToEmail = (string)address.GetValue("Email");
+                        break;
+                    case 2:
+                        string shipToOrganization = (string)address.GetValue("Organization");
+                        string shipToCountryCode = (string)address.GetValue("CountryCode");
+                        string shipToCountryName = (string)address.GetValue("CountryName");
+                        string shipToCity = (string)address.GetValue("City");
+                        string shipToPostalCode = (string)address.GetValue("PostalCode");
+                        string shipToZip = (string)address.GetValue("Zip");
+                        string shipToLine1 = (string)address.GetValue("Line1");
+                        string shipToLine2 = (string)address.GetValue("Line2");
+                        string shipToRegionId = (string)address.GetValue("RegionId");
+                        string shipToRegionName = (string)address.GetValue("RegionName");
+                        string shipToFirstName = (string)address.GetValue("FirstName");
+                        string shipToMiddleName = (string)address.GetValue("MiddleName");
+                        string shipToLastName = (string)address.GetValue("LastName");
+                        string shipToPhone = (string)address.GetValue("Phone");
+                        string shipToEmail = (string)address.GetValue("Email");
+                        break;
+                    default:
+                        break;
+                }
+            }
+
+
+            return retVal;
         }
 
         private void ProcessCpqQuoteJson(HttpResponseHeaders headers)
