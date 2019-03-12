@@ -155,13 +155,27 @@ namespace VirtoCommerce.Storefront.Controllers.Api
             var parameters = "?api-version=2016-10-01&sp=/triggers/manual/run&sv=1.0&sig=ir9firMdH8eoQIIQfppuhNVW9c2lxjpYWV8fIw8rKBY";
             var uri = endPoint + resource + parameters;
 
+            string vcQuote = Newtonsoft.Json.JsonConvert.SerializeObject(_quoteRequestBuilder.QuoteRequest);
+
             byte[] byteData = System.Text.Encoding.UTF8.GetBytes(@"{""quoteName"": """ + quoteName + "\"}");
 
             using (var content = new System.Net.Http.ByteArrayContent(byteData))
             {
                 content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
                 var response = await client.PostAsync(uri, content);
+
+                ProcessCpqQuoteJson(response.Headers);
             }
+        }
+
+        private void ProcessCpqQuoteJson(HttpResponseHeaders headers)
+        {
+            string cpqQuoteNumberKey = "cpqQuoteNumber";
+            string cpqQuoteNumber = string.Empty;
+
+            if (headers.Contains(cpqQuoteNumberKey))
+                cpqQuoteNumber = headers.GetValues(cpqQuoteNumberKey).First();
+
         }
 
         // POST: storefrontapi/quoterequest/{number}/reject
