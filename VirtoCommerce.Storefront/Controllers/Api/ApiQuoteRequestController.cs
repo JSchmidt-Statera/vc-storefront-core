@@ -50,6 +50,9 @@ namespace VirtoCommerce.Storefront.Controllers.Api
                 //allow search only within self quotes
                 criteria.CustomerId = WorkContext.CurrentUser.Id;
                 var result = _quoteService.SearchQuotes(criteria);
+
+                SyncCpqStatus(result.AsEnumerable<QuoteRequest>()).Wait();
+
                 return Json(new
                 {
                     Results = result,
@@ -57,6 +60,38 @@ namespace VirtoCommerce.Storefront.Controllers.Api
                 });
             }
             return NoContent();
+        }
+
+        private async Task SyncCpqStatus(IEnumerable<QuoteRequest> results)
+        {
+            //var client = new System.Net.Http.HttpClient();
+            //var queryString = System.Web.HttpUtility.ParseQueryString(string.Empty);
+            var endPoint = "https://prod-20.westus.logic.azure.com:443";
+            var resource = "/workflows/ae2e0b8ee76f48efb4ce51c99c84ff65/triggers/manual/paths/invoke";
+            var parameters = "?api-version=2016-10-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=0b0N_oaqS98_zKZqAYJJ5UjxT1BhUVucYu2v2rfSwJQ";
+            var uri = endPoint + resource + parameters;
+
+            foreach (var result in results)
+            {
+                var vcQuoteNumber = result.Number;
+                var vcQuoteStatus = result.Status;
+
+                //Get CPQ Quote Status (call web service with vcQuoteNumber)
+                var cpqQuoteStatus = "Draft";
+
+                if (vcQuoteStatus != cpqQuoteStatus)
+                {
+                    result.Status = cpqQuoteStatus;
+                    await _quoteRequestBuilder.LoadQuoteRequestAsync(vcQuoteNumber, WorkContext.CurrentLanguage, WorkContext.CurrentCurrency);
+                    EnsureQuoteRequestBelongsToCurrentCustomer(_quoteRequestBuilder.QuoteRequest);
+
+                    using (await AsyncLock.GetLockByKey(_quoteRequestBuilder.QuoteRequest.Id).LockAsync())
+                    {
+                        _quoteRequestBuilder.QuoteRequest.Status = cpqQuoteStatus;
+                        await _quoteRequestBuilder.SaveAsync();
+                    }
+                }
+            }
         }
 
         // GET: storefrontapi/quoterequests/{number}/itemscount
