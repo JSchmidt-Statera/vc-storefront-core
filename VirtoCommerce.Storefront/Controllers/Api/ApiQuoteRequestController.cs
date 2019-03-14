@@ -158,6 +158,7 @@ namespace VirtoCommerce.Storefront.Controllers.Api
             var parameters = "?api-version=2016-10-01&sp=/triggers/manual/run&sv=1.0&sig=ir9firMdH8eoQIIQfppuhNVW9c2lxjpYWV8fIw8rKBY";
             var uri = endPoint + resource + parameters;
 
+            _quoteRequestBuilder.QuoteRequest.EmployeeName = this.WorkContext.CurrentUser.Contact.FullName;
             string vcQuote = Newtonsoft.Json.JsonConvert.SerializeObject(_quoteRequestBuilder.QuoteRequest);
             byte[] byteData = System.Text.Encoding.UTF8.GetBytes(vcQuote);
 
