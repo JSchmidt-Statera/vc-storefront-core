@@ -64,8 +64,7 @@ namespace VirtoCommerce.Storefront.Controllers.Api
 
         private async Task SyncCpqStatus(IEnumerable<QuoteRequest> results)
         {
-            //var client = new System.Net.Http.HttpClient();
-            //var queryString = System.Web.HttpUtility.ParseQueryString(string.Empty);
+            var client = new System.Net.Http.HttpClient();
             var endPoint = "https://prod-20.westus.logic.azure.com:443";
             var resource = "/workflows/ae2e0b8ee76f48efb4ce51c99c84ff65/triggers/manual/paths/invoke";
             var parameters = "?api-version=2016-10-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=0b0N_oaqS98_zKZqAYJJ5UjxT1BhUVucYu2v2rfSwJQ";
@@ -75,9 +74,18 @@ namespace VirtoCommerce.Storefront.Controllers.Api
             {
                 var vcQuoteNumber = result.Number;
                 var vcQuoteStatus = result.Status;
+                var cpqQuoteStatus = string.Empty;
 
-                //Get CPQ Quote Status (call web service with vcQuoteNumber)
-                var cpqQuoteStatus = "Draft";
+                byte[] byteData = System.Text.Encoding.UTF8.GetBytes(@"{""vcQuoteNumber"": """ + vcQuoteNumber + "\"}");
+
+                using (var content = new System.Net.Http.ByteArrayContent(byteData))
+                {
+                    content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
+                    var response = await client.PostAsync(uri, content);
+
+                    ProcessCpqQuoteJson(response.Headers);
+                    cpqQuoteStatus = response.Headers.GetValues("cpqStatus").First();
+                }
 
                 if (vcQuoteStatus != cpqQuoteStatus)
                 {
