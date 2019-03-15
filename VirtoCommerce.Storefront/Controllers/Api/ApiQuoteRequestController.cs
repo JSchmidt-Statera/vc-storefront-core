@@ -83,11 +83,11 @@ namespace VirtoCommerce.Storefront.Controllers.Api
                     content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
                     var response = await client.PostAsync(uri, content);
 
-                    ProcessCpqQuoteJson(response.Headers);
-                    cpqQuoteStatus = response.Headers.GetValues("cpqStatus").First();
+                    if (!object.ReferenceEquals(response.Headers.GetValues("cpqStatus"), null))
+                        cpqQuoteStatus = response.Headers.GetValues("cpqStatus").First();
                 }
 
-                if (vcQuoteStatus != cpqQuoteStatus)
+                if (cpqQuoteStatus != string.Empty && vcQuoteStatus != cpqQuoteStatus)
                 {
                     result.Status = cpqQuoteStatus;
                     await _quoteRequestBuilder.LoadQuoteRequestAsync(vcQuoteNumber, WorkContext.CurrentLanguage, WorkContext.CurrentCurrency);
