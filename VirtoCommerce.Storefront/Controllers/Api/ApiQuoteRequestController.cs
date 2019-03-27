@@ -65,9 +65,17 @@ namespace VirtoCommerce.Storefront.Controllers.Api
         private async Task SyncCpqStatus(IEnumerable<QuoteRequest> results)
         {
             var client = new System.Net.Http.HttpClient();
-            var endPoint = "https://prod-20.westus.logic.azure.com:443";
-            var resource = "/workflows/ae2e0b8ee76f48efb4ce51c99c84ff65/triggers/manual/paths/invoke";
-            var parameters = "?api-version=2016-10-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=0b0N_oaqS98_zKZqAYJJ5UjxT1BhUVucYu2v2rfSwJQ";
+
+            //fm-cpq-syncstatus
+            //var endPoint = "https://prod-20.westus.logic.azure.com:443";
+            //var resource = "/workflows/ae2e0b8ee76f48efb4ce51c99c84ff65/triggers/manual/paths/invoke";
+            //var parameters = "?api-version=2016-10-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=0b0N_oaqS98_zKZqAYJJ5UjxT1BhUVucYu2v2rfSwJQ";
+
+            //fm-cpq-quote-syncstatus
+            var endPoint = "https://prod-57.westus.logic.azure.com:443";
+            var resource = "/workflows/76beb340e63e40f69bd5b092ac421751/triggers/manual/paths/invoke";
+            var parameters = "?api-version=2016-10-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=uUu-VPP6ZGIlXWP864ymDMrnTkGxOCyS2MFFP5OXD04";
+
             var uri = endPoint + resource + parameters;
 
             foreach (var result in results)
@@ -76,20 +84,27 @@ namespace VirtoCommerce.Storefront.Controllers.Api
                 var vcQuoteStatus = result.Status;
                 var cpqQuoteStatus = string.Empty;
 
-                byte[] byteData = System.Text.Encoding.UTF8.GetBytes(@"{""vcQuoteNumber"": """ + vcQuoteNumber + "\"}");
+                byte[] byteData = System.Text.Encoding.UTF8.GetBytes("{\"vcQuoteNumber\": \"" + vcQuoteNumber + "\", \"vcQuoteStatus\": \"" + vcQuoteStatus + "\"}");
 
                 using (var content = new System.Net.Http.ByteArrayContent(byteData))
                 {
                     content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
                     var response = await client.PostAsync(uri, content);
 
-                    if (!object.ReferenceEquals(response.Headers.GetValues("cpqStatus"), null))
+                    if (response.Headers.Contains("cpqStatus"))
                         cpqQuoteStatus = response.Headers.GetValues("cpqStatus").First();
                 }
 
-                if (cpqQuoteStatus != string.Empty && vcQuoteStatus != cpqQuoteStatus)
+                var shouldUpdate = false;
+
+                if ((vcQuoteStatus == "Processing" || vcQuoteStatus == "Draft") && (cpqQuoteStatus == "Draft" || cpqQuoteStatus == "In Review"))
                 {
+                    shouldUpdate = true;
                     result.Status = cpqQuoteStatus;
+                }
+
+                if (shouldUpdate)
+                {
                     await _quoteRequestBuilder.LoadQuoteRequestAsync(vcQuoteNumber, WorkContext.CurrentLanguage, WorkContext.CurrentCurrency);
                     EnsureQuoteRequestBelongsToCurrentCustomer(_quoteRequestBuilder.QuoteRequest);
 
@@ -196,9 +211,17 @@ namespace VirtoCommerce.Storefront.Controllers.Api
         {
             var client = new System.Net.Http.HttpClient();
             var queryString = System.Web.HttpUtility.ParseQueryString(string.Empty);
-            var endPoint = "https://prod-11.westus.logic.azure.com:443";
-            var resource = "/workflows/915a6f97b54a4099a96855db2dcc862f/triggers/manual/paths/invoke";
-            var parameters = "?api-version=2016-10-01&sp=/triggers/manual/run&sv=1.0&sig=ir9firMdH8eoQIIQfppuhNVW9c2lxjpYWV8fIw8rKBY";
+
+            //fm-scratch
+            //var endPoint = "https://prod-11.westus.logic.azure.com:443";
+            //var resource = "/workflows/915a6f97b54a4099a96855db2dcc862f/triggers/manual/paths/invoke";
+            //var parameters = "?api-version=2016-10-01&sp=/triggers/manual/run&sv=1.0&sig=ir9firMdH8eoQIIQfppuhNVW9c2lxjpYWV8fIw8rKBY";
+
+            //fm-cpq-quote-create
+            var endPoint = "https://prod-52.westus.logic.azure.com:443";
+            var resource = "/workflows/90cb1eb4ded34878af774d6cee2b87d4/triggers/manual/paths/invoke";
+            var parameters = "?api-version=2016-10-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=_F4uwuvc3Hb3b8OXHZ66E81j6YfrIWMtc7JTdyBbOU4";
+
             var uri = endPoint + resource + parameters;
 
             _quoteRequestBuilder.QuoteRequest.EmployeeName = this.WorkContext.CurrentUser.Contact.FullName;
@@ -209,20 +232,18 @@ namespace VirtoCommerce.Storefront.Controllers.Api
             {
                 content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
                 var response = await client.PostAsync(uri, content);
-
-                ProcessCpqQuoteJson(response.Headers);
+                //ProcessCpqQuoteJson(response.Headers);
             }
         }
 
-        private void ProcessCpqQuoteJson(HttpResponseHeaders headers)
-        {
-            string cpqQuoteNumberKey = "cpqQuoteNumber";
-            string cpqQuoteNumber = string.Empty;
+        //private void ProcessCpqQuoteJson(HttpResponseHeaders headers)
+        //{
+        //    string cpqQuoteNumberKey = "cpqQuoteNumber";
+        //    string cpqQuoteNumber = string.Empty;
 
-            if (headers.Contains(cpqQuoteNumberKey))
-                cpqQuoteNumber = headers.GetValues(cpqQuoteNumberKey).First();
-
-        }
+        //    if (headers.Contains(cpqQuoteNumberKey))
+        //        cpqQuoteNumber = headers.GetValues(cpqQuoteNumberKey).First();
+        //}
 
         // POST: storefrontapi/quoterequest/{number}/reject
         [HttpPost("quoterequests/{number}/reject")]
