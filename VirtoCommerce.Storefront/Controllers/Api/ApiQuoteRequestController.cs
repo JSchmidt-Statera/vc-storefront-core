@@ -51,7 +51,7 @@ namespace VirtoCommerce.Storefront.Controllers.Api
                 criteria.CustomerId = WorkContext.CurrentUser.Id;
                 var result = _quoteService.SearchQuotes(criteria);
 
-                SyncCpqStatus(result.AsEnumerable<QuoteRequest>()).Wait();
+                SyncCpqStatus_FmApi(result.AsEnumerable<QuoteRequest>()).Wait();
 
                 return Json(new
                 {
@@ -76,6 +76,57 @@ namespace VirtoCommerce.Storefront.Controllers.Api
             var resource = "/workflows/76beb340e63e40f69bd5b092ac421751/triggers/manual/paths/invoke";
             var parameters = "?api-version=2016-10-01&sp=%2Ftriggers%2Fmanual%2Frun&sv=1.0&sig=uUu-VPP6ZGIlXWP864ymDMrnTkGxOCyS2MFFP5OXD04";
 
+            var uri = endPoint + resource + parameters;
+
+            foreach (var result in results)
+            {
+                var vcQuoteNumber = result.Number;
+                var vcQuoteStatus = result.Status;
+                var cpqQuoteStatus = string.Empty;
+
+                byte[] byteData = System.Text.Encoding.UTF8.GetBytes("{\"vcQuoteNumber\": \"" + vcQuoteNumber + "\", \"vcQuoteStatus\": \"" + vcQuoteStatus + "\"}");
+
+                using (var content = new System.Net.Http.ByteArrayContent(byteData))
+                {
+                    content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
+                    var response = await client.PostAsync(uri, content);
+
+                    if (response.Headers.Contains("cpqStatus"))
+                        cpqQuoteStatus = response.Headers.GetValues("cpqStatus").First();
+                }
+
+                var shouldUpdate = false;
+
+                if ((vcQuoteStatus == "Processing" || vcQuoteStatus == "Draft") && (cpqQuoteStatus == "Draft" || cpqQuoteStatus == "In Review"))
+                {
+                    shouldUpdate = true;
+                    result.Status = cpqQuoteStatus;
+                }
+
+                if (shouldUpdate)
+                {
+                    await _quoteRequestBuilder.LoadQuoteRequestAsync(vcQuoteNumber, WorkContext.CurrentLanguage, WorkContext.CurrentCurrency);
+                    EnsureQuoteRequestBelongsToCurrentCustomer(_quoteRequestBuilder.QuoteRequest);
+
+                    using (await AsyncLock.GetLockByKey(_quoteRequestBuilder.QuoteRequest.Id).LockAsync())
+                    {
+                        _quoteRequestBuilder.QuoteRequest.Status = cpqQuoteStatus;
+                        await _quoteRequestBuilder.SaveAsync();
+                    }
+                }
+            }
+        }
+
+        private async Task SyncCpqStatus_FmApi(IEnumerable<QuoteRequest> results)
+        {
+            var client = new System.Net.Http.HttpClient();
+            client.DefaultRequestHeaders.Add("SOAPAction", "query");
+            client.DefaultRequestHeaders.Add("Ocp-Apim-Subscription-Key", "e3362c681178493ea0d05cc47cdffe5d");
+
+            //fm-api.cpq-quote-syncstatus
+            var endPoint = "https://fm-api.azure-api.net";
+            var resource = "/cpq-quote-syncstatus/manual/paths/invoke";
+            var parameters = string.Empty;
             var uri = endPoint + resource + parameters;
 
             foreach (var result in results)
@@ -202,12 +253,12 @@ namespace VirtoCommerce.Storefront.Controllers.Api
                 await _quoteRequestBuilder.SaveAsync();
             }
 
-            CreateCpqQuote(_quoteRequestBuilder.QuoteRequest.Number);
+            CreateCpqQuote_FmApi(_quoteRequestBuilder.QuoteRequest.Number);
 
             return Ok();
         }
 
-        private async void CreateCpqQuote(string quoteName)
+        private async void CreateCpqQuote_LogicApp(string quoteName)
         {
             var client = new System.Net.Http.HttpClient();
             var queryString = System.Web.HttpUtility.ParseQueryString(string.Empty);
@@ -233,6 +284,29 @@ namespace VirtoCommerce.Storefront.Controllers.Api
                 content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
                 var response = await client.PostAsync(uri, content);
                 //ProcessCpqQuoteJson(response.Headers);
+            }
+        }
+
+        private async void CreateCpqQuote_FmApi(string quoteName)
+        {
+            var client = new System.Net.Http.HttpClient();
+            client.DefaultRequestHeaders.Add("SOAPAction", "query");
+            client.DefaultRequestHeaders.Add("Ocp-Apim-Subscription-Key", "e3362c681178493ea0d05cc47cdffe5d");
+
+            //fm-api.cpq-quote-create
+            var endPoint = "https://fm-api.azure-api.net";
+            var resource = "/cpq-quote-create/manual/paths/invoke";
+            var parameters = string.Empty;
+            var uri = endPoint + resource + parameters;
+
+            _quoteRequestBuilder.QuoteRequest.EmployeeName = this.WorkContext.CurrentUser.Contact.FullName;
+            string vcQuote = Newtonsoft.Json.JsonConvert.SerializeObject(_quoteRequestBuilder.QuoteRequest);
+            byte[] byteData = System.Text.Encoding.UTF8.GetBytes(vcQuote);
+
+            using (var content = new System.Net.Http.ByteArrayContent(byteData))
+            {
+                content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
+                var response = await client.PostAsync(uri, content);
             }
         }
 
